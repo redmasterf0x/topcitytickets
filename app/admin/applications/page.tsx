@@ -45,9 +45,9 @@ export default function AdminApplicationsPage() {
       const { data, error } = await supabase
         .from("seller_applications")
         .select(`
-          *,
-          user:users(email, full_name)
-        `)
+        *,
+        user:users(email, full_name)
+      `)
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -64,34 +64,81 @@ export default function AdminApplicationsPage() {
   }
 
   const handleApplicationAction = async (applicationId: string, action: "approved" | "rejected") => {
+    if (!user) {
+      console.error("Admin user not found. Cannot process application action.")
+      // Optionally, show an error message to the UI
+      return
+    }
+
     try {
       console.log(`${action} application:`, applicationId)
 
-      const { error } = await supabase.from("seller_applications").update({ status: action }).eq("id", applicationId)
+      // Prepare the update payload for the seller_applications table
+      const applicationUpdatePayload: {
+        status: "approved" | "rejected"
+        reviewed_by: string
+        reviewed_at: string
+      } = {
+        status: action,
+        reviewed_by: user.id, // Admin's user ID
+        reviewed_at: new Date().toISOString(),
+      }
 
-      if (error) {
-        console.error("Error updating application:", error)
+      // Update the seller_applications table
+      const { error: applicationUpdateError } = await supabase
+        .from("seller_applications")
+        .update(applicationUpdatePayload)
+        .eq("id", applicationId)
+
+      if (applicationUpdateError) {
+        console.error("Error updating application:", applicationUpdateError)
+        // TODO: Show an error message to the UI
         return
       }
 
-      // If approved, also update the user's role and seller_status
+      // Find the application to get the user_id for updating the users table
+      const application = applications.find((app) => app.id === applicationId)
+      if (!application) {
+        console.error("Application not found in local state after update attempt.")
+        // TODO: Show an error message to the UI or refetch
+        return
+      }
+
+      // Update the users table based on the action
       if (action === "approved") {
-        const application = applications.find((app) => app.id === applicationId)
-        if (application) {
-          await supabase
-            .from("users")
-            .update({
-              role: "seller",
-              seller_status: "approved",
-            })
-            .eq("id", application.user_id)
+        const { error: userUpdateError } = await supabase
+          .from("users")
+          .update({
+            role: "seller",
+            seller_status: "approved",
+          })
+          .eq("id", application.user_id)
+
+        if (userUpdateError) {
+          console.error("Error updating user role/status to seller/approved:", userUpdateError)
+          // TODO: Handle this error, potentially revert application status or notify admin
+        }
+      } else if (action === "rejected") {
+        const { error: userUpdateError } = await supabase
+          .from("users")
+          .update({
+            seller_status: "rejected",
+            // Optionally, ensure role is 'user' if it was changed prematurely
+            // role: "user",
+          })
+          .eq("id", application.user_id)
+
+        if (userUpdateError) {
+          console.error("Error updating user seller_status to rejected:", userUpdateError)
+          // TODO: Handle this error
         }
       }
 
-      // Refresh the applications list
+      // Refresh the applications list to reflect changes
       fetchApplications()
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error in handleApplicationAction:", error)
+      // TODO: Show a generic error message to the UI
     }
   }
 

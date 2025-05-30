@@ -1,10 +1,31 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowRight, Calendar, Ticket, Users } from "lucide-react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 
 import { Button } from "@/components/ui/button"
 import { BusinessOpportunitiesForm } from "@/components/business-opportunities-form"
 
 export default function LandingPage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/events")
+    }
+  }, [user, loading, router])
+
+  if (loading || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
+      </div>
+    )
+  }
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Hero Section with Video Background */}
