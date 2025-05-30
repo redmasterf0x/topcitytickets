@@ -60,6 +60,7 @@ export function SellerApplicationForm() {
     try {
       const { error } = await supabase.from("seller_applications").insert({
         user_id: user.id,
+        user_email: user.email, // Add this line to store the user's email
         business_name: formData.get("business-name") as string,
         business_type: formData.get("business-type") as string,
         website: (formData.get("website") as string) || null,

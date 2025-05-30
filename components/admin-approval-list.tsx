@@ -144,6 +144,8 @@ export function AdminApprovalList() {
     }
   }
 
+  // In the approveSeller function, ensure we're using the correct user ID
+
   const approveSeller = async (id: string, userId: string) => {
     try {
       console.log("Approving seller application:", id, "for user:", userId)

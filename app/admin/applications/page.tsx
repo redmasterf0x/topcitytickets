@@ -267,7 +267,7 @@ function ApplicationCard({
             </div>
             <div>
               <CardTitle className="text-white">{application.user?.full_name || "No name provided"}</CardTitle>
-              <p className="text-sm text-gray-400">{application.user?.email}</p>
+              <p className="text-sm text-gray-400 font-medium">{application.user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
