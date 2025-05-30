@@ -1,45 +1,112 @@
+"use client" // Add this if not present
+
+import { useState, useEffect } from "react" // Added
 import Link from "next/link"
-import { Calendar, MapPin, Share, Star, Ticket, Users } from "lucide-react"
+import { Calendar, MapPin, Share, Star, Ticket, Users, AlertCircle } from "lucide-react" // Added AlertCircle
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { supabase } from "@/lib/supabase" // Added
+
+// Define an interface for the event data
+interface EventData {
+  id: string
+  title: string
+  description: string
+  long_description?: string // Assuming this might be in your DB or you'll use description
+  date: string
+  time: string
+  location: string
+  address?: string // Assuming this might be in your DB
+  organizer_id: string | null
+  image_url: string | null
+  price: number
+  category: string
+  tags?: string[] // Assuming this might be in your DB or derived
+  lineup?: string[] // Assuming this might be in your DB or derived
+  organizer?: { full_name?: string | null; email?: string | null } | null // For joined data
+}
+
+// Mock ticket types (can be replaced with DB data if available)
+const mockTicketTypes = [
+  { name: "General Admission", price: "$75", available: true },
+  { name: "VIP Pass", price: "$150", available: true },
+  { name: "Weekend Pass", price: "$120", available: true },
+  { name: "Backstage Experience", price: "$250", available: false },
+]
 
 export default function EventDetailPage({ params }: { params: { id: string } }) {
-  // Mock event data - in a real app, this would be fetched based on the ID
-  const event = {
-    id: params.id,
-    title: "Summer Music Festival",
-    description:
-      "Join us for three days of amazing music featuring top artists from around the world. Experience unforgettable performances across multiple stages in the heart of the city.",
-    longDescription:
-      "The Summer Music Festival is the premier music event of the season, bringing together an incredible lineup of artists spanning multiple genres. From rock and pop to electronic and hip-hop, there's something for every music lover.\n\nWith three main stages, food vendors, art installations, and more, this festival offers a complete experience beyond just the music. Come for the performances, stay for the community and atmosphere that make this event special year after year.",
-    date: "June 15-17, 2023",
-    time: "12:00 PM - 11:00 PM",
-    location: "Central Park, New York",
-    address: "Central Park, 5th Ave, New York, NY 10022",
-    organizer: "City Events Productions",
-    image: "/placeholder.svg?height=600&width=1200",
-    price: "$75",
-    category: "Music",
-    tags: ["Festival", "Live Music", "Outdoor"],
-    lineup: [
-      "The Groove Masters",
-      "Electric Pulse",
-      "Melody Makers",
-      "Rhythm Collective",
-      "Sound Pioneers",
-      "Harmony Heights",
-    ],
-    ticketTypes: [
-      { name: "General Admission", price: "$75", available: true },
-      { name: "VIP Pass", price: "$150", available: true },
-      { name: "Weekend Pass", price: "$120", available: true },
-      { name: "Backstage Experience", price: "$250", available: false },
-    ],
+  const [event, setEvent] = useState<EventData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchEvent = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const { data, error: dbError } = await supabase
+          .from("events")
+          .select(`
+            *,
+            organizer:users!organizer_id (full_name, email)
+          `)
+          .eq("id", params.id)
+          .eq("status", "approved") // Only show approved events
+          .single()
+
+        if (dbError) {
+          console.error("Error fetching event:", dbError)
+          setError("Failed to load event details. It might not exist or is not available.")
+          setEvent(null)
+        } else {
+          setEvent(data as EventData)
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching event:", err)
+        setError("An unexpected error occurred.")
+        setEvent(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (params.id) {
+      fetchEvent()
+    }
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+      </div>
+    )
   }
+
+  if (error || !event) {
+    return (
+      <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 text-center min-h-[calc(100vh-10rem)] flex flex-col justify-center items-center">
+        <AlertCircle className="h-16 w-16 text-red-500 mb-4" />
+        <h1 className="text-2xl font-bold text-white mb-2">Event Not Found</h1>
+        <p className="text-gray-400 mb-6">
+          {error || "The event you are looking for does not exist or is no longer available."}
+        </p>
+        <Button asChild className="bg-purple-600 hover:bg-purple-700">
+          <Link href="/events">Browse Other Events</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  // Use event data, with fallbacks for potentially missing fields
+  const displayTags = event.tags || (event.category ? [event.category] : ["Event"])
+  const displayLineup = event.lineup || ["Lineup details coming soon."]
+  const displayLongDescription = event.long_description || event.description
+  const displayOrganizerName = event.organizer?.full_name || event.organizer?.email || "Top City Tickets"
 
   return (
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -58,13 +125,14 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
             <span className="inline-flex items-center rounded-full bg-purple-900/30 px-3 py-1 text-sm font-medium text-purple-400">
               {event.category}
             </span>
+            {/* Placeholder for reviews, as it's not in the DB schema */}
             <div className="flex items-center text-yellow-400">
               <Star className="mr-1 h-4 w-4 fill-yellow-400" />
               <Star className="mr-1 h-4 w-4 fill-yellow-400" />
               <Star className="mr-1 h-4 w-4 fill-yellow-400" />
-              <Star className="mr-1 h-4 w-4 fill-yellow-400" />
               <Star className="mr-1 h-4 w-4" />
-              <span className="ml-1 text-sm text-gray-400">(124 reviews)</span>
+              <Star className="mr-1 h-4 w-4" />
+              <span className="ml-1 text-sm text-gray-400">(No reviews yet)</span>
             </div>
           </div>
         </div>
@@ -85,7 +153,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       {/* Event Image */}
       <div className="relative mb-8 overflow-hidden rounded-xl">
         <img
-          src={event.image || "/placeholder.svg"}
+          src={event.image_url || "/placeholder.svg?height=600&width=1200&query=event+banner"}
           alt={event.title}
           className="h-[300px] w-full object-cover md:h-[400px]"
         />
@@ -115,7 +183,9 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 </CardHeader>
                 <CardContent className="space-y-4 text-gray-300">
                   <p>{event.description}</p>
-                  <p>{event.longDescription}</p>
+                  {event.long_description && event.long_description !== event.description && (
+                    <p>{event.long_description}</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -125,7 +195,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {event.tags.map((tag) => (
+                    {displayTags.map((tag) => (
                       <span key={tag} className="rounded-full bg-gray-800 px-3 py-1 text-sm font-medium text-gray-300">
                         {tag}
                       </span>
@@ -141,22 +211,26 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                   <CardTitle>Event Lineup</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-4">
-                    {event.lineup.map((artist, index) => (
-                      <li
-                        key={index}
-                        className="flex items-center gap-4 rounded-lg border border-gray-800 bg-gray-800/50 p-4"
-                      >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-900/30 text-purple-400">
-                          <Users className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-white">{artist}</h3>
-                          <p className="text-sm text-gray-400">Performing on Day {Math.floor(index / 2) + 1}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  {displayLineup[0] === "Lineup details coming soon." ? (
+                    <p className="text-gray-400">{displayLineup[0]}</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {displayLineup.map((artist, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center gap-4 rounded-lg border border-gray-800 bg-gray-800/50 p-4"
+                        >
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-900/30 text-purple-400">
+                            <Users className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-white">{artist}</h3>
+                            {/* <p className="text-sm text-gray-400">Performing on Day {Math.floor(index / 2) + 1}</p> */}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -167,58 +241,9 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                   <CardTitle>Customer Reviews</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-purple-900/30 text-purple-400"></div>
-                          <span className="font-medium text-white">Sarah Johnson</span>
-                        </div>
-                        <div className="flex text-yellow-400">
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                        </div>
-                      </div>
-                      <p className="text-gray-300">
-                        Absolutely amazing experience! The lineup was incredible and the atmosphere was electric. Can't
-                        wait for next year!
-                      </p>
-                      <p className="mt-2 text-sm text-gray-400">Posted 2 days ago</p>
-                    </div>
-
-                    <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-purple-900/30 text-purple-400"></div>
-                          <span className="font-medium text-white">Michael Chen</span>
-                        </div>
-                        <div className="flex text-yellow-400">
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4 fill-yellow-400" />
-                          <Star className="h-4 w-4" />
-                        </div>
-                      </div>
-                      <p className="text-gray-300">
-                        Great event overall! The music was fantastic and the venue was perfect. Only giving 4 stars
-                        because the food options were a bit limited.
-                      </p>
-                      <p className="mt-2 text-sm text-gray-400">Posted 1 week ago</p>
-                    </div>
-                  </div>
+                  <p className="text-gray-400">No reviews yet for this event. Be the first to write one!</p>
+                  {/* Placeholder for review submission form or list */}
                 </CardContent>
-                <CardFooter>
-                  <Button
-                    variant="outline"
-                    className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-                  >
-                    View All Reviews
-                  </Button>
-                </CardFooter>
               </Card>
             </TabsContent>
           </Tabs>
@@ -236,8 +261,21 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 <Calendar className="mt-0.5 h-5 w-5 text-purple-400" />
                 <div>
                   <h3 className="font-medium text-white">Date & Time</h3>
-                  <p className="text-gray-400">{event.date}</p>
-                  <p className="text-gray-400">{event.time}</p>
+                  <p className="text-gray-400">
+                    {new Date(event.date).toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                  <p className="text-gray-400">
+                    {new Date(`1970-01-01T${event.time}`).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </p>
                 </div>
               </div>
               <Separator className="bg-gray-800" />
@@ -246,7 +284,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 <div>
                   <h3 className="font-medium text-white">Location</h3>
                   <p className="text-gray-400">{event.location}</p>
-                  <p className="text-gray-400">{event.address}</p>
+                  {event.address && <p className="text-gray-400">{event.address}</p>}
                 </div>
               </div>
               <Separator className="bg-gray-800" />
@@ -254,7 +292,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 <Users className="mt-0.5 h-5 w-5 text-purple-400" />
                 <div>
                   <h3 className="font-medium text-white">Organizer</h3>
-                  <p className="text-gray-400">{event.organizer}</p>
+                  <p className="text-gray-400">{displayOrganizerName}</p>
                 </div>
               </div>
             </CardContent>
@@ -275,7 +313,8 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                     <SelectValue placeholder="Select ticket type" />
                   </SelectTrigger>
                   <SelectContent className="border-gray-700 bg-gray-800 text-white">
-                    {event.ticketTypes.map((ticket) => (
+                    {/* Using mockTicketTypes for now */}
+                    {mockTicketTypes.map((ticket) => (
                       <SelectItem key={ticket.name} value={ticket.name} disabled={!ticket.available}>
                         {ticket.name} - {ticket.price} {!ticket.available && "(Sold Out)"}
                       </SelectItem>
@@ -303,16 +342,16 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
               <div className="mt-4 rounded-lg bg-gray-800 p-4">
                 <div className="flex justify-between">
                   <span className="text-gray-300">Ticket Price</span>
-                  <span className="text-white">$75.00</span>
+                  <span className="text-white">${event.price.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-300">Service Fee</span>
-                  <span className="text-white">$10.00</span>
+                  <span className="text-white">${(event.price * 0.1).toFixed(2)}</span> {/* Example fee */}
                 </div>
                 <Separator className="my-2 bg-gray-700" />
                 <div className="flex justify-between font-medium">
                   <span className="text-gray-300">Total</span>
-                  <span className="text-white">$85.00</span>
+                  <span className="text-white">${(event.price * 1.1).toFixed(2)}</span> {/* Example total */}
                 </div>
               </div>
             </CardContent>

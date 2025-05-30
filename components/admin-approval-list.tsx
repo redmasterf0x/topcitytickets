@@ -57,44 +57,45 @@ export function AdminApprovalList() {
   }, [user])
 
   const fetchData = async () => {
+    setLoading(true) // Ensure loading is true at the start
     try {
       console.log("Fetching admin approval data...")
 
-      // Fetch seller applications
+      // Fetch PENDING seller applications
       const { data: applicationsData, error: applicationsError } = await supabase
         .from("seller_applications")
         .select(`
           *,
           user:users(email, full_name)
         `)
-        .eq("status", "pending")
+        .eq("status", "pending") // Fetch only pending
         .order("created_at", { ascending: false })
 
       if (applicationsError) {
-        console.error("Error fetching applications:", applicationsError)
+        console.error("Error fetching PENDING applications:", applicationsError)
       } else {
-        console.log("Seller applications fetched:", applicationsData)
+        console.log("PENDING Seller applications fetched:", applicationsData)
         setSellerApplications(applicationsData || [])
       }
 
-      // Fetch event requests
+      // Fetch PENDING event requests
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
         .select(`
           *,
-          organizer:users(email, full_name)
+          organizer:users!organizer_id(email, full_name)
         `)
-        .eq("status", "pending")
+        .eq("status", "pending") // Fetch only pending
         .order("created_at", { ascending: false })
 
       if (eventsError) {
-        console.error("Error fetching events:", eventsError)
+        console.error("Error fetching PENDING events:", eventsError)
       } else {
-        console.log("Event requests fetched:", eventsData)
+        console.log("PENDING Event requests fetched:", eventsData)
         setEventRequests(eventsData || [])
       }
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error in fetchData (AdminApprovalList):", error)
     } finally {
       setLoading(false)
     }
@@ -199,22 +200,23 @@ export function AdminApprovalList() {
     )
   }
 
-  const pendingApplications = sellerApplications.filter((app) => app.status === "pending")
-  const pendingEvents = eventRequests.filter((event) => event.status === "pending")
+  // No need to filter again here, as fetchData already gets pending items
+  // const pendingApplications = sellerApplications;
+  // const pendingEvents = eventRequests;
 
   return (
     <Tabs defaultValue="sellers" className="space-y-6">
       <TabsList className="bg-gray-800">
         <TabsTrigger value="sellers" className="data-[state=active]:bg-purple-900 data-[state=active]:text-white">
-          Seller Applications ({pendingApplications.length})
+          Seller Applications ({sellerApplications.length}) {/* Direct length from fetched pending */}
         </TabsTrigger>
         <TabsTrigger value="events" className="data-[state=active]:bg-purple-900 data-[state=active]:text-white">
-          Event Requests ({pendingEvents.length})
+          Event Requests ({eventRequests.length}) {/* Direct length from fetched pending */}
         </TabsTrigger>
       </TabsList>
 
       <TabsContent value="sellers" className="space-y-4">
-        {pendingApplications.length === 0 ? (
+        {sellerApplications.length === 0 ? (
           <Card className="border-gray-800 bg-gray-900/50">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <User className="h-12 w-12 text-gray-400 mb-4" />
@@ -223,7 +225,8 @@ export function AdminApprovalList() {
             </CardContent>
           </Card>
         ) : (
-          pendingApplications.map((application) => (
+          sellerApplications.map((application) => (
+            // ... Card rendering for seller application (ensure application.user is safely accessed)
             <Card key={application.id} className="border-gray-800 bg-gray-900/50">
               <CardContent className="p-6">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -232,8 +235,10 @@ export function AdminApprovalList() {
                       <User className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-medium text-white">{application.user?.full_name || "No name provided"}</h3>
-                      <p className="text-sm text-gray-400">{application.user?.email}</p>
+                      <h3 className="font-medium text-white">
+                        {application.user?.full_name || application.user?.email || "N/A"}
+                      </h3>
+                      <p className="text-sm text-gray-400">{application.user?.email || "No email"}</p>
                       <p className="text-sm text-gray-400">
                         {application.business_name} • {application.business_type}
                       </p>
@@ -278,7 +283,7 @@ export function AdminApprovalList() {
       </TabsContent>
 
       <TabsContent value="events" className="space-y-4">
-        {pendingEvents.length === 0 ? (
+        {eventRequests.length === 0 ? (
           <Card className="border-gray-800 bg-gray-900/50">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Calendar className="h-12 w-12 text-gray-400 mb-4" />
@@ -287,7 +292,8 @@ export function AdminApprovalList() {
             </CardContent>
           </Card>
         ) : (
-          pendingEvents.map((event) => (
+          eventRequests.map((event) => (
+            // ... Card rendering for event request (ensure event.organizer is safely accessed)
             <Card key={event.id} className="border-gray-800 bg-gray-900/50">
               <CardContent className="p-6">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -298,7 +304,7 @@ export function AdminApprovalList() {
                     <div>
                       <h3 className="font-medium text-white">{event.title}</h3>
                       <p className="text-sm text-gray-400">
-                        by {event.organizer?.full_name || event.organizer?.email} • {event.category}
+                        by {event.organizer?.full_name || event.organizer?.email || "N/A"} • {event.category}
                       </p>
                       <p className="text-sm text-gray-400">
                         {new Date(event.date).toLocaleDateString()} at {event.time}
