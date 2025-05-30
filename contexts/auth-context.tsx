@@ -21,7 +21,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Production mode - set to true for production
+// Production mode - set to false for production
 const DEVELOPMENT_MODE = false
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
