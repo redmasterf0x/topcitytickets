@@ -132,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error in fetchProfile:", error)
     } finally {
+      console.log("fetchProfile: Setting loading to false for user:", userId)
       setLoading(false)
     }
   }
@@ -182,8 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      // Always use production URL for email confirmation
-      const redirectTo = "https://v0-dark-themed-ticket-app.vercel.app/auth/callback"
+      // Get the current origin dynamically
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "https://v0-dark-themed-ticket-app.vercel.app"
+      const redirectTo = `${origin}/auth/callback`
+
+      console.log("Sign up with redirect URL:", redirectTo)
 
       if (DEVELOPMENT_MODE) {
         // Development: Skip email confirmation
@@ -198,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         return { error }
       } else {
-        // Production: Use email confirmation with correct URL
+        // Production: Use email confirmation with dynamic URL
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
