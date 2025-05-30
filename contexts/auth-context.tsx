@@ -30,25 +30,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
+    // Get initial session with error handling
+    const getInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Error getting session:", error)
+          // If there's an auth error, clear any invalid session
+          if (error.message?.includes("refresh_token_not_found")) {
+            await supabase.auth.signOut()
+          }
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error("Error in getInitialSession:", error)
+        setUser(null)
+        setProfile(null)
         setLoading(false)
       }
-    })
+    }
+
+    getInitialSession()
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, session?.user?.email)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
+
+      try {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        } else {
+          setProfile(null)
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error("Error in auth state change:", error)
+        setUser(null)
         setProfile(null)
         setLoading(false)
       }
@@ -123,59 +157,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      return { error }
+    } catch (error) {
+      console.error("Error in signIn:", error)
+      return { error }
+    }
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    // Always use production URL for email confirmation
-    const redirectTo = "https://v0-dark-themed-ticket-app.vercel.app/auth/callback"
+    try {
+      // Always use production URL for email confirmation
+      const redirectTo = "https://v0-dark-themed-ticket-app.vercel.app/auth/callback"
 
-    if (DEVELOPMENT_MODE) {
-      // Development: Skip email confirmation
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
+      if (DEVELOPMENT_MODE) {
+        // Development: Skip email confirmation
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
           },
-        },
-      })
-      return { error }
-    } else {
-      // Production: Use email confirmation with correct URL
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
+        })
+        return { error }
+      } else {
+        // Production: Use email confirmation with correct URL
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
+            emailRedirectTo: redirectTo,
           },
-          emailRedirectTo: redirectTo,
-        },
-      })
+        })
+        return { error }
+      }
+    } catch (error) {
+      console.error("Error in signUp:", error)
       return { error }
     }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      await supabase.auth.signOut()
+      setUser(null)
+      setProfile(null)
+    } catch (error) {
+      console.error("Error in signOut:", error)
+      // Even if signOut fails, clear local state
+      setUser(null)
+      setProfile(null)
+    }
   }
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { error: new Error("No user logged in") }
 
-    const { error } = await supabase.from("users").update(updates).eq("id", user.id)
+    try {
+      const { error } = await supabase.from("users").update(updates).eq("id", user.id)
 
-    if (!error) {
-      setProfile((prev) => (prev ? { ...prev, ...updates } : null))
+      if (!error) {
+        setProfile((prev) => (prev ? { ...prev, ...updates } : null))
+      }
+
+      return { error }
+    } catch (error) {
+      console.error("Error in updateProfile:", error)
+      return { error }
     }
-
-    return { error }
   }
 
   const value = {

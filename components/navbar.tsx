@@ -41,8 +41,17 @@ export function Navbar() {
   }
 
   const handleSignOut = async () => {
-    await signOut()
-    setIsMenuOpen(false)
+    try {
+      await signOut()
+      setIsMenuOpen(false)
+      // Force a page refresh to clear any cached state
+      window.location.href = "/"
+    } catch (error) {
+      console.error("Error signing out:", error)
+      // Even if there's an error, try to clear local state and redirect
+      setIsMenuOpen(false)
+      window.location.href = "/"
+    }
   }
 
   return (
