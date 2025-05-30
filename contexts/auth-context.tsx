@@ -52,12 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (session?.user) {
-          // Session is valid, set user and fetch profile
           setUser(session.user)
-          // fetchProfile will set loading to false in its finally block
           await fetchProfile(session.user.id)
         } else {
-          // No session, user is not logged in
           setUser(null)
           setProfile(null)
           setLoading(false)
@@ -82,15 +79,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state change event:", event, "Session user:", session?.user?.email)
-      setLoading(true) // Indicate loading state while processing auth change
+      setLoading(true)
 
       if (session?.user) {
-        // This covers SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED if they result in a valid user session.
-        // It also handles the case where getInitialSession found a valid session.
         setUser(session.user)
-        await fetchProfile(session.user.id) // fetchProfile will set loading to false
+        await fetchProfile(session.user.id)
       } else {
-        // This covers SIGNED_OUT or any event/situation resulting in no session user (e.g., token revoked).
         setUser(null)
         setProfile(null)
         setLoading(false)
@@ -106,65 +100,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("Fetching profile for user:", userId)
 
-      // First, check if profile exists
-      const { data, error, count } = await supabase.from("users").select("*", { count: "exact" }).eq("id", userId)
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single() // Use single() as we expect one or zero profiles
 
-      console.log("Profile query result:", { data, error, count })
-
-      if (error) {
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 means no rows found, which is handled by the auth hook now
         console.error("Error fetching profile:", error)
-
-        // If no profile exists, create one
-        if (error.code === "PGRST116" || count === 0) {
-          console.log("No profile found, creating one...")
-          await createUserProfile(userId)
-          return
-        }
-      } else if (data && data.length > 0) {
-        // If we have data, use the first record
-        setProfile(data[0])
-      } else if (count === 0) {
-        // No profile exists, create one
-        console.log("No profile found (count=0), creating one...")
-        await createUserProfile(userId)
-        return
+      } else if (data) {
+        setProfile(data)
+      } else {
+        // This case should ideally not be hit if the auth hook is working,
+        // but as a fallback, we can log it.
+        console.warn("Profile not found for user:", userId, "Auth hook might not have run yet or failed.")
+        setProfile(null) // Ensure profile is null if not found
       }
     } catch (error) {
       console.error("Error in fetchProfile:", error)
     } finally {
       console.log("fetchProfile: Setting loading to false for user:", userId)
       setLoading(false)
-    }
-  }
-
-  const createUserProfile = async (userId: string) => {
-    try {
-      console.log("Creating profile for user:", userId)
-
-      const { data: userData } = await supabase.auth.getUser()
-      const userEmail = userData.user?.email || ""
-      const userFullName = userData.user?.user_metadata?.full_name || ""
-
-      const { data, error } = await supabase
-        .from("users")
-        .insert({
-          id: userId,
-          email: userEmail,
-          full_name: userFullName,
-          role: "user",
-          seller_status: "none",
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error("Error creating profile:", error)
-      } else {
-        console.log("Profile created successfully:", data)
-        setProfile(data)
-      }
-    } catch (error) {
-      console.error("Error in createUserProfile:", error)
     }
   }
 

@@ -19,31 +19,51 @@ export function AuthGuard({ children, requireAuth = true, allowedRoles }: AuthGu
   useEffect(() => {
     if (!loading) {
       if (requireAuth && !user) {
+        console.log("AuthGuard: No user found, redirecting to sign-in")
         router.push("/sign-in")
         return
       }
 
       if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+        console.log("AuthGuard: User role not allowed, redirecting to dashboard")
         router.push("/dashboard")
         return
       }
     }
   }, [user, profile, loading, requireAuth, allowedRoles, router])
 
+  // Show loading spinner while auth is loading
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-500 border-t-transparent mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
       </div>
     )
   }
 
+  // If auth is required but no user, don't render children (redirect will happen)
   if (requireAuth && !user) {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="text-center">
+          <p className="text-gray-400">Redirecting to sign in...</p>
+        </div>
+      </div>
+    )
   }
 
+  // If role is required but user doesn't have it, don't render children
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="text-center">
+          <p className="text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>
