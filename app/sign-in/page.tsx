@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase"
 
 export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -51,6 +52,44 @@ export default function SignInPage() {
     }
   }
 
+  const resendConfirmationEmail = async () => {
+    if (!email) {
+      setError("Please enter your email address first")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    try {
+      // Get the current origin dynamically
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "https://v0-dark-themed-ticket-app.vercel.app"
+      const redirectTo = `${origin}/auth/callback`
+
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: email,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        // Show success message or update UI to indicate email was sent
+        setError("")
+        // You could add a success state here if needed
+      }
+    } catch (error) {
+      console.error("Error resending confirmation email:", error)
+      setError("Failed to resend confirmation email. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // If user is already signed in but email not confirmed, show confirmation message
   useEffect(() => {
     if (user && !user.email_confirmed_at) {
@@ -73,7 +112,22 @@ export default function SignInPage() {
             Click the link in your email to confirm your account and you'll be automatically redirected to your
             dashboard.
           </p>
-          <div className="pt-4 space-y-2">
+
+          {/* Add error display for resend functionality */}
+          {error && (
+            <div className="rounded-md bg-red-900/20 border border-red-900/50 p-3">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          <div className="pt-4 space-y-3">
+            <Button
+              onClick={resendConfirmationEmail}
+              disabled={loading}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              {loading ? "Sending..." : "Resend Confirmation Email"}
+            </Button>
             <Button
               variant="outline"
               className="w-full border-gray-700 text-gray-300 hover:bg-gray-800"
@@ -84,6 +138,19 @@ export default function SignInPage() {
             <Button asChild variant="ghost" className="w-full text-gray-400 hover:text-white">
               <Link href="/sign-up">Create New Account</Link>
             </Button>
+          </div>
+
+          {/* Troubleshooting section */}
+          <div className="pt-4 border-t border-gray-800">
+            <p className="text-xs text-gray-500 mb-2">
+              <strong>Didn't receive the email?</strong>
+            </p>
+            <ul className="text-xs text-gray-400 space-y-1 text-left">
+              <li>• Check your spam or junk folder</li>
+              <li>• Make sure you entered the correct email address</li>
+              <li>• Wait a few minutes and refresh your inbox</li>
+              <li>• Try clicking "Resend Confirmation Email" above</li>
+            </ul>
           </div>
         </div>
       </div>
