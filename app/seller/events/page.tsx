@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Calendar, Edit, Eye, Clock } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -123,9 +124,11 @@ export default function SellerEventsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-white">My Events</h1>
             <p className="text-gray-400">Manage your events and track performance</p>
           </div>
-          <Button className="bg-purple-600 hover:bg-purple-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Create New Event
+          <Button asChild className="bg-purple-600 hover:bg-purple-700">
+            <Link href="/seller/events/create">
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Event
+            </Link>
           </Button>
         </div>
 
@@ -149,9 +152,11 @@ export default function SellerEventsPage() {
                   <Calendar className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-2">No Live Events</h3>
                   <p className="text-gray-400 text-center mb-4">You don't have any approved events yet.</p>
-                  <Button className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Your First Event
+                  <Button asChild className="bg-purple-600 hover:bg-purple-700">
+                    <Link href="/seller/events/create">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Your First Event
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>

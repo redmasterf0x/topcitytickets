@@ -40,6 +40,7 @@ export function Navbar() {
         { name: "Seller Mgt.", href: "/seller/events" }, // Link to seller event management
         { name: "Admin Mgt.", href: "/admin-dashboard" }, // Link to admin specific dashboard
         { name: "Applications", href: "/admin/applications" }, // Link to seller applications
+        { name: "Event Requests", href: "/admin/event-requests" }, // Add this line
       )
     }
   }
