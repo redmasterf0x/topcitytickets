@@ -37,6 +37,7 @@ interface EventRequest {
   category: string
   status: "pending" | "approved" | "rejected"
   created_at: string
+  organizer_id: string
   organizer: {
     email: string
     full_name: string
@@ -57,6 +58,8 @@ export function AdminApprovalList() {
 
   const fetchData = async () => {
     try {
+      console.log("Fetching admin approval data...")
+
       // Fetch seller applications
       const { data: applicationsData, error: applicationsError } = await supabase
         .from("seller_applications")
@@ -64,11 +67,13 @@ export function AdminApprovalList() {
           *,
           user:users(email, full_name)
         `)
+        .eq("status", "pending")
         .order("created_at", { ascending: false })
 
       if (applicationsError) {
         console.error("Error fetching applications:", applicationsError)
       } else {
+        console.log("Seller applications fetched:", applicationsData)
         setSellerApplications(applicationsData || [])
       }
 
@@ -77,13 +82,15 @@ export function AdminApprovalList() {
         .from("events")
         .select(`
           *,
-          organizer:users!organizer_id(email, full_name)
+          organizer:users(email, full_name)
         `)
+        .eq("status", "pending")
         .order("created_at", { ascending: false })
 
       if (eventsError) {
         console.error("Error fetching events:", eventsError)
       } else {
+        console.log("Event requests fetched:", eventsData)
         setEventRequests(eventsData || [])
       }
     } catch (error) {
@@ -95,6 +102,8 @@ export function AdminApprovalList() {
 
   const approveSeller = async (id: string, userId: string) => {
     try {
+      console.log("Approving seller application:", id, "for user:", userId)
+
       // Update application status
       const { error: appError } = await supabase.from("seller_applications").update({ status: "approved" }).eq("id", id)
 
@@ -123,6 +132,8 @@ export function AdminApprovalList() {
 
   const rejectSeller = async (id: string, userId: string) => {
     try {
+      console.log("Rejecting seller application:", id, "for user:", userId)
+
       // Update application status
       const { error: appError } = await supabase.from("seller_applications").update({ status: "rejected" }).eq("id", id)
 
@@ -148,6 +159,8 @@ export function AdminApprovalList() {
 
   const approveEvent = async (id: string) => {
     try {
+      console.log("Approving event:", id)
+
       const { error } = await supabase.from("events").update({ status: "approved" }).eq("id", id)
 
       if (error) {
@@ -163,6 +176,8 @@ export function AdminApprovalList() {
 
   const rejectEvent = async (id: string) => {
     try {
+      console.log("Rejecting event:", id)
+
       const { error } = await supabase.from("events").update({ status: "rejected" }).eq("id", id)
 
       if (error) {
@@ -217,8 +232,8 @@ export function AdminApprovalList() {
                       <User className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-medium text-white">{application.user.full_name || "No name provided"}</h3>
-                      <p className="text-sm text-gray-400">{application.user.email}</p>
+                      <h3 className="font-medium text-white">{application.user?.full_name || "No name provided"}</h3>
+                      <p className="text-sm text-gray-400">{application.user?.email}</p>
                       <p className="text-sm text-gray-400">
                         {application.business_name} • {application.business_type}
                       </p>
@@ -283,7 +298,7 @@ export function AdminApprovalList() {
                     <div>
                       <h3 className="font-medium text-white">{event.title}</h3>
                       <p className="text-sm text-gray-400">
-                        by {event.organizer.full_name || event.organizer.email} • {event.category}
+                        by {event.organizer?.full_name || event.organizer?.email} • {event.category}
                       </p>
                       <p className="text-sm text-gray-400">
                         {new Date(event.date).toLocaleDateString()} at {event.time}

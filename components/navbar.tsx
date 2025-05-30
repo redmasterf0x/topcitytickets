@@ -8,6 +8,7 @@ import { Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -41,14 +42,19 @@ export function Navbar() {
   }
 
   const handleSignOut = async () => {
+    console.log("Sign out button clicked!") // Debug log
     try {
-      await signOut()
+      console.log("Calling supabase signOut...")
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error("Supabase signOut error:", error)
+      } else {
+        console.log("SignOut successful, redirecting...")
+      }
       setIsMenuOpen(false)
-      // Force a page refresh to clear any cached state
       window.location.href = "/"
     } catch (error) {
-      console.error("Error signing out:", error)
-      // Even if there's an error, try to clear local state and redirect
+      console.error("Error in handleSignOut:", error)
       setIsMenuOpen(false)
       window.location.href = "/"
     }

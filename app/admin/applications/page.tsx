@@ -40,6 +40,8 @@ export default function AdminApplicationsPage() {
 
   const fetchApplications = async () => {
     try {
+      console.log("Fetching seller applications...")
+
       const { data, error } = await supabase
         .from("seller_applications")
         .select(`
@@ -51,6 +53,7 @@ export default function AdminApplicationsPage() {
       if (error) {
         console.error("Error fetching applications:", error)
       } else {
+        console.log("Applications fetched:", data)
         setApplications(data || [])
       }
     } catch (error) {
@@ -62,6 +65,8 @@ export default function AdminApplicationsPage() {
 
   const handleApplicationAction = async (applicationId: string, action: "approved" | "rejected") => {
     try {
+      console.log(`${action} application:`, applicationId)
+
       const { error } = await supabase.from("seller_applications").update({ status: action }).eq("id", applicationId)
 
       if (error) {
@@ -214,8 +219,8 @@ function ApplicationCard({
               <User className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-white">{application.user.full_name}</CardTitle>
-              <p className="text-sm text-gray-400">{application.user.email}</p>
+              <CardTitle className="text-white">{application.user?.full_name || "No name provided"}</CardTitle>
+              <p className="text-sm text-gray-400">{application.user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
