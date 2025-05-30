@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import type { Database } from "@/lib/supabase"
@@ -24,15 +24,116 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Production mode - set to false for production
 const DEVELOPMENT_MODE = false
 
+// Session timeout: 30 minutes of inactivity
+const SESSION_TIMEOUT = 30 * 60 * 1000 // 30 minutes in milliseconds
+const STORAGE_KEY = "auth_last_activity"
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastActivityRef = useRef<number>(Date.now())
+
+  // Update last activity timestamp
+  const updateLastActivity = () => {
+    const now = Date.now()
+    lastActivityRef.current = now
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, now.toString())
+    }
+  }
+
+  // Check if session has expired due to inactivity
+  const isSessionExpired = () => {
+    if (typeof window === "undefined") return false
+
+    const lastActivity = localStorage.getItem(STORAGE_KEY)
+    if (!lastActivity) return false
+
+    const timeSinceLastActivity = Date.now() - Number.parseInt(lastActivity)
+    return timeSinceLastActivity > SESSION_TIMEOUT
+  }
+
+  // Clear session due to timeout
+  const handleSessionTimeout = async () => {
+    console.log("Session expired due to inactivity, signing out...")
+    await signOut()
+  }
+
+  // Set up activity listeners
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart", "click"]
+
+    const resetTimeout = () => {
+      updateLastActivity()
+
+      // Clear existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+
+      // Set new timeout only if user is logged in
+      if (user) {
+        timeoutRef.current = setTimeout(handleSessionTimeout, SESSION_TIMEOUT)
+      }
+    }
+
+    // Add event listeners for user activity
+    events.forEach((event) => {
+      document.addEventListener(event, resetTimeout, true)
+    })
+
+    // Handle visibility change (tab switching)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Tab became visible, check if session expired
+        if (user && isSessionExpired()) {
+          handleSessionTimeout()
+        } else if (user) {
+          // Reset timeout if still valid
+          resetTimeout()
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    // Initial setup if user exists
+    if (user) {
+      resetTimeout()
+    }
+
+    return () => {
+      // Cleanup
+      events.forEach((event) => {
+        document.removeEventListener(event, resetTimeout, true)
+      })
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [user])
 
   useEffect(() => {
     const getInitialSession = async () => {
-      setLoading(true) // Set loading true at the start of session check
+      setLoading(true)
+
       try {
+        // Check if session expired before attempting to get session
+        if (isSessionExpired()) {
+          console.log("Session expired, clearing auth state")
+          await supabase.auth.signOut()
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
         const {
           data: { session },
           error,
@@ -40,19 +141,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
           console.error("Error getting session on initial load:", error.message)
-          // An error here suggests the stored session is problematic (e.g., invalid token).
-          // Attempt to sign out to clear it. This will trigger onAuthStateChange.
           await supabase.auth.signOut()
-          // Explicitly clear state here as a fallback in case onAuthStateChange doesn't immediately fire
-          // or if signOut itself had an issue (though unlikely to throw here).
           setUser(null)
           setProfile(null)
-          setLoading(false) // Ensure loading is false after handling error
+          setLoading(false)
           return
         }
 
         if (session?.user) {
           setUser(session.user)
+          updateLastActivity() // Update activity on successful session load
           await fetchProfile(session.user.id)
         } else {
           setUser(null)
@@ -61,11 +159,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.error("Unexpected error in getInitialSession:", e)
-        // Fallback in case of other errors during initial session check
         try {
-          await supabase.auth.signOut() // Attempt to clear any session
+          await supabase.auth.signOut()
         } catch (signOutError) {
-          console.error("Error during emergency signOut in getInitialSession catch:", signOutError)
+          console.error("Error during emergency signOut:", signOutError)
         }
         setUser(null)
         setProfile(null)
@@ -79,14 +176,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state change event:", event, "Session user:", session?.user?.email)
-      setLoading(true)
+
+      // Don't set loading for SIGNED_OUT events to avoid infinite loading
+      if (event !== "SIGNED_OUT") {
+        setLoading(true)
+      }
 
       if (session?.user) {
         setUser(session.user)
+        updateLastActivity()
         await fetchProfile(session.user.id)
       } else {
         setUser(null)
         setProfile(null)
+        // Clear activity tracking when signed out
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(STORAGE_KEY)
+        }
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
         setLoading(false)
       }
     })
@@ -94,24 +204,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, []) // Keep the dependency array empty as this effect should run once on mount
+  }, [])
 
   const fetchProfile = async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId)
 
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single() // Use single() as we expect one or zero profiles
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
       if (error && error.code !== "PGRST116") {
-        // PGRST116 means no rows found, which is handled by the auth hook now
         console.error("Error fetching profile:", error)
       } else if (data) {
         setProfile(data)
       } else {
-        // This case should ideally not be hit if the auth hook is working,
-        // but as a fallback, we can log it.
-        console.warn("Profile not found for user:", userId, "Auth hook might not have run yet or failed.")
-        setProfile(null) // Ensure profile is null if not found
+        console.warn("Profile not found for user:", userId)
+        setProfile(null)
       }
     } catch (error) {
       console.error("Error in fetchProfile:", error)
@@ -127,6 +234,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       })
+
+      if (!error) {
+        updateLastActivity()
+      }
+
       return { error }
     } catch (error) {
       console.error("Error in signIn:", error)
@@ -136,7 +248,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      // Get the current origin dynamically
       const origin =
         typeof window !== "undefined" ? window.location.origin : "https://v0-dark-themed-ticket-app.vercel.app"
       const redirectTo = `${origin}/auth/callback`
@@ -144,7 +255,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("Sign up with redirect URL:", redirectTo)
 
       if (DEVELOPMENT_MODE) {
-        // Development: Skip email confirmation
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -156,7 +266,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         return { error }
       } else {
-        // Production: Use email confirmation with dynamic URL
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -177,6 +286,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Clear timeout and activity tracking immediately
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+
       await supabase.auth.signOut()
       setUser(null)
       setProfile(null)
@@ -196,6 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!error) {
         setProfile((prev) => (prev ? { ...prev, ...updates } : null))
+        updateLastActivity() // Update activity on profile changes
       }
 
       return { error }

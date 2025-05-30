@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -15,25 +15,33 @@ interface AuthGuardProps {
 export function AuthGuard({ children, requireAuth = true, allowedRoles }: AuthGuardProps) {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+  const [shouldRender, setShouldRender] = useState(false)
 
   useEffect(() => {
-    if (!loading) {
-      if (requireAuth && !user) {
-        console.log("AuthGuard: No user found, redirecting to sign-in")
-        router.push("/sign-in")
-        return
-      }
+    // Add a small delay to prevent flash of loading state
+    const timer = setTimeout(() => {
+      if (!loading) {
+        if (requireAuth && !user) {
+          console.log("AuthGuard: No user found, redirecting to sign-in")
+          router.push("/sign-in")
+          return
+        }
 
-      if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-        console.log("AuthGuard: User role not allowed, redirecting to dashboard")
-        router.push("/dashboard")
-        return
+        if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+          console.log("AuthGuard: User role not allowed, redirecting to dashboard")
+          router.push("/dashboard")
+          return
+        }
+
+        setShouldRender(true)
       }
-    }
+    }, 100) // Small delay to prevent flashing
+
+    return () => clearTimeout(timer)
   }, [user, profile, loading, requireAuth, allowedRoles, router])
 
-  // Show loading spinner while auth is loading
-  if (loading) {
+  // Show loading spinner while auth is loading or during the small delay
+  if (loading || !shouldRender) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="text-center">
