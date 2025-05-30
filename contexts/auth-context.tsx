@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session with error handling
     const getInitialSession = async () => {
+      setLoading(true) // Set loading true at the start of session check
       try {
         const {
           data: { session },
@@ -39,25 +39,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = await supabase.auth.getSession()
 
         if (error) {
-          console.error("Error getting session:", error)
-          // If there's an auth error, clear any invalid session
-          if (error.message?.includes("refresh_token_not_found")) {
-            await supabase.auth.signOut()
-          }
+          console.error("Error getting session on initial load:", error.message)
+          // An error here suggests the stored session is problematic (e.g., invalid token).
+          // Attempt to sign out to clear it. This will trigger onAuthStateChange.
+          await supabase.auth.signOut()
+          // Explicitly clear state here as a fallback in case onAuthStateChange doesn't immediately fire
+          // or if signOut itself had an issue (though unlikely to throw here).
           setUser(null)
           setProfile(null)
-          setLoading(false)
+          setLoading(false) // Ensure loading is false after handling error
           return
         }
 
-        setUser(session?.user ?? null)
         if (session?.user) {
+          // Session is valid, set user and fetch profile
+          setUser(session.user)
+          // fetchProfile will set loading to false in its finally block
           await fetchProfile(session.user.id)
         } else {
+          // No session, user is not logged in
+          setUser(null)
+          setProfile(null)
           setLoading(false)
         }
-      } catch (error) {
-        console.error("Error in getInitialSession:", error)
+      } catch (e) {
+        console.error("Unexpected error in getInitialSession:", e)
+        // Fallback in case of other errors during initial session check
+        try {
+          await supabase.auth.signOut() // Attempt to clear any session
+        } catch (signOutError) {
+          console.error("Error during emergency signOut in getInitialSession catch:", signOutError)
+        }
         setUser(null)
         setProfile(null)
         setLoading(false)
@@ -66,30 +78,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email)
+      console.log("Auth state change event:", event, "Session user:", session?.user?.email)
+      setLoading(true) // Indicate loading state while processing auth change
 
-      try {
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        } else {
-          setProfile(null)
-          setLoading(false)
-        }
-      } catch (error) {
-        console.error("Error in auth state change:", error)
+      if (session?.user) {
+        // This covers SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED if they result in a valid user session.
+        // It also handles the case where getInitialSession found a valid session.
+        setUser(session.user)
+        await fetchProfile(session.user.id) // fetchProfile will set loading to false
+      } else {
+        // This covers SIGNED_OUT or any event/situation resulting in no session user (e.g., token revoked).
         setUser(null)
         setProfile(null)
         setLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, []) // Keep the dependency array empty as this effect should run once on mount
 
   const fetchProfile = async (userId: string) => {
     try {

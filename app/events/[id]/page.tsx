@@ -1,15 +1,25 @@
 "use client" // Add this if not present
 
-import { useState, useEffect } from "react" // Added
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { SocialShareButtons } from "@/components/social-share-buttons" // New import
+import { useEffect, useState } from "react" // Ensure useEffect and useState are imported
+import { supabase } from "@/lib/supabase" // Ensure supabase is imported
+import { AlertCircle } from "lucide-react" // Ensure AlertCircle is imported
 import Link from "next/link"
-import { Calendar, MapPin, Share, Star, Ticket, Users, AlertCircle } from "lucide-react" // Added AlertCircle
+import { Calendar, MapPin, Share, Star, Ticket, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase" // Added
 
 // Define an interface for the event data
 interface EventData {
@@ -42,6 +52,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentUrl, setCurrentUrl] = useState("")
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -78,6 +89,12 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       fetchEvent()
     }
   }, [params.id])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCurrentUrl(window.location.href)
+    }
+  }, [params.id]) // Re-run if params.id changes, though href should be stable once page loads
 
   if (loading) {
     return (
@@ -137,13 +154,31 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
-          >
-            <Share className="h-5 w-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
+              >
+                <Share className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-gray-800 border-gray-700 text-white">
+              <DropdownMenuLabel>Share this Event</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-700" />
+              <DropdownMenuItem asChild className="focus:bg-gray-700 focus:text-white p-0">
+                {/* Padding is removed from item and applied to the inner component for better layout control */}
+                <div className="p-2">
+                  {currentUrl && event?.title ? (
+                    <SocialShareButtons url={currentUrl} title={event.title} />
+                  ) : (
+                    <p className="text-xs text-gray-400">Preparing share links...</p>
+                  )}
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button className="bg-purple-600 hover:bg-purple-700">
             <Ticket className="mr-2 h-5 w-5" /> Get Tickets
           </Button>
