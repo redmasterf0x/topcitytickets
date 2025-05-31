@@ -36,7 +36,7 @@ interface UpcomingEvent {
 }
 
 export default function DashboardPage() {
-  const { profile, user, loading: authLoading } = useAuth() // Added authLoading
+  const { profile, user, initialLoading, fetchProfile } = useAuth() // Added authLoading
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [dashboardLoading, setDashboardLoading] = useState(true) // Renamed to avoid conflict
@@ -46,13 +46,13 @@ export default function DashboardPage() {
   const sellerStatus = profile?.seller_status || "none"
 
   useEffect(() => {
-    if (!authLoading && user && profile) {
+    if (!initialLoading && user && profile) {
       fetchDashboardData()
-    } else if (!authLoading && (!user || !profile)) {
+    } else if (!initialLoading && (!user || !profile)) {
       // If auth is done loading and no user/profile, stop dashboard loading
       setDashboardLoading(false)
     }
-  }, [authLoading, user, profile]) // Depend on authLoading
+  }, [initialLoading, user, profile]) // Removed fetchDashboardData from deps to avoid loop, it's called internally.
 
   const fetchDashboardData = async () => {
     setDashboardLoading(true) // Start dashboard loading
@@ -178,7 +178,7 @@ export default function DashboardPage() {
   }
 
   // Show main loading spinner if auth or dashboard data is loading
-  if (authLoading || dashboardLoading) {
+  if (initialLoading || dashboardLoading) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-black">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-500 border-t-transparent"></div>
@@ -425,7 +425,7 @@ export default function DashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <SellerApplicationForm />
+                  <SellerApplicationForm fetchProfile={fetchProfile} />
                 </CardContent>
               </Card>
             </TabsContent>

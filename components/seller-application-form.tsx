@@ -17,7 +17,7 @@ export function SellerApplicationForm() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const { user } = useAuth()
+  const { user, fetchProfile, updateUserProfileInContext } = useAuth()
   const [existingApplication, setExistingApplication] = useState<any>(null)
   const [checkingExisting, setCheckingExisting] = useState(true)
 
@@ -74,8 +74,22 @@ export function SellerApplicationForm() {
         setError("Failed to submit application. Please try again.")
       } else {
         // Update user's seller_status to pending
-        await supabase.from("users").update({ seller_status: "pending" }).eq("id", user.id)
-        setSubmitted(true)
+        const { error: userUpdateError } = await supabase
+          .from("users")
+          .update({ seller_status: "pending" })
+          .eq("id", user.id)
+
+        if (userUpdateError) {
+          console.error("Error updating user seller_status to pending:", userUpdateError)
+          setError("Failed to update your user status. Please contact support.")
+          // Potentially revert application or notify admin
+        } else {
+          setSubmitted(true)
+          // Optimistically update profile in context
+          updateUserProfileInContext({ seller_status: "pending" })
+          // Or, for a full refresh:
+          // await fetchProfile();
+        }
       }
     } catch (error) {
       console.error("Error:", error)

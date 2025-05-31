@@ -52,7 +52,7 @@ export function AdminApprovalList() {
   const [sellerApplications, setSellerApplications] = useState<SellerApplication[]>([])
   const [eventRequests, setEventRequests] = useState<EventRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
 
   const [processedApplications, setProcessedApplications] = useState<SellerApplication[]>([])
   const [processedEvents, setProcessedEvents] = useState<EventRequest[]>([])
@@ -169,6 +169,11 @@ export function AdminApprovalList() {
         return
       }
 
+      // Refresh auth context if the updated user is the current user
+      if (user?.id === userId) {
+        await updateUser()
+      }
+
       // Refresh data
       fetchData()
     } catch (error) {
@@ -194,6 +199,11 @@ export function AdminApprovalList() {
       if (userError) {
         console.error("Error updating user:", userError)
         return
+      }
+
+      // Refresh auth context if the updated user is the current user
+      if (user?.id === userId) {
+        await updateUser()
       }
 
       // Refresh data

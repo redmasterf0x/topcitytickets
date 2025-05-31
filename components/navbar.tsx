@@ -2,18 +2,18 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Menu, X, LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const pathname = usePathname()
-  const { user, profile, loading } = useAuth() // Added loading
+  const { user, profile, initialLoading, signOut } = useAuth() // Added loading
+  const router = useRouter()
 
   const isActive = (path: string) => {
     return pathname === path
@@ -27,7 +27,7 @@ export function Navbar() {
 
   // Dynamically build navLinks
   const navLinks = [...baseNavLinks]
-  if (!loading && user && profile) {
+  if (!initialLoading && user && profile) {
     if (profile.role === "user") {
       navLinks.push({ name: "Dashboard", href: "/dashboard" })
       navLinks.push({ name: "My Tickets", href: "/tickets" })
@@ -48,16 +48,15 @@ export function Navbar() {
   const handleSignOut = async () => {
     console.log("Sign out button clicked!")
     try {
-      await supabase.auth.signOut()
-      // AuthProvider will handle user/profile state update
-      // Forcing a reload or redirect might be too abrupt, let AuthProvider handle it.
-      // router.push("/") // Or window.location.href = "/" if needed
+      await signOut() // Use signOut from context
       setIsMenuOpen(false)
-      window.location.href = "/" // Force redirect to ensure state clears
+      // Redirecting here can be helpful to ensure a clean state,
+      // though onAuthStateChange should also handle it.
+      router.push("/")
     } catch (error) {
       console.error("Error in handleSignOut:", error)
       setIsMenuOpen(false)
-      window.location.href = "/" // Fallback redirect
+      router.push("/") // Fallback redirect
     }
   }
 
@@ -98,7 +97,7 @@ export function Navbar() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex md:items-center md:space-x-4">
-            {loading ? (
+            {initialLoading ? (
               <div className="h-5 w-20 animate-pulse rounded bg-gray-700" />
             ) : user ? (
               <div className="flex items-center space-x-4">
@@ -161,7 +160,7 @@ export function Navbar() {
               </Link>
             ))}
             <div className="mt-4 flex flex-col space-y-2 px-3">
-              {loading ? (
+              {initialLoading ? (
                 <div className="h-8 w-full animate-pulse rounded bg-gray-700" />
               ) : user ? (
                 <>

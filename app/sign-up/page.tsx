@@ -41,7 +41,16 @@ export default function SignUpPage() {
       return
     }
 
-    const { error } = await signUp(formData.email, formData.password, formData.fullName)
+    const { error } = await signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        // Supabase requires options for additional data
+        data: {
+          full_name: formData.fullName,
+        },
+      },
+    })
 
     if (error) {
       setError(error.message)

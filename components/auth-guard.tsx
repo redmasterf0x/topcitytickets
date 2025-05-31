@@ -1,75 +1,63 @@
 "use client"
 
 import type React from "react"
-
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { Button } from "@/components/ui/button"
 
 interface AuthGuardProps {
   children: React.ReactNode
   requireAuth?: boolean
-  allowedRoles?: ("user" | "seller" | "admin")[]
+  allowedRoles?: Array<"user" | "seller" | "admin">
 }
 
 export function AuthGuard({ children, requireAuth = true, allowedRoles }: AuthGuardProps) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, initialLoading } = useAuth() // Use initialLoading
   const router = useRouter()
-  const [shouldRender, setShouldRender] = useState(false)
 
   useEffect(() => {
-    // Add a small delay to prevent flash of loading state
-    const timer = setTimeout(() => {
-      if (!loading) {
-        if (requireAuth && !user) {
-          console.log("AuthGuard: No user found, redirecting to sign-in")
-          router.push("/sign-in")
-          return
-        }
+    if (initialLoading) {
+      return // Wait for auth state and profile to be loaded
+    }
 
-        if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-          console.log("AuthGuard: User role not allowed, redirecting to dashboard")
-          router.push("/dashboard")
-          return
-        }
+    if (requireAuth && !user) {
+      router.push("/sign-in")
+      return
+    }
 
-        setShouldRender(true)
+    if (user && allowedRoles && profile) {
+      if (!allowedRoles.includes(profile.role)) {
+        // User is authenticated but doesn't have the required role
+        // Redirect to a general access page like dashboard or home,
+        // or a specific "access denied" page.
+        router.push("/dashboard") // Or "/" or "/access-denied"
       }
-    }, 100) // Small delay to prevent flashing
+    }
+  }, [user, profile, initialLoading, requireAuth, allowedRoles, router])
 
-    return () => clearTimeout(timer)
-  }, [user, profile, loading, requireAuth, allowedRoles, router])
-
-  // Show loading spinner while auth is loading or during the small delay
-  if (loading || !shouldRender) {
+  if (initialLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-500 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
     )
   }
 
-  // If auth is required but no user, don't render children (redirect will happen)
   if (requireAuth && !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <div className="text-center">
-          <p className="text-gray-400">Redirecting to sign in...</p>
-        </div>
-      </div>
-    )
+    // This case should ideally be caught by useEffect redirect,
+    // but as a fallback, don't render children.
+    return null
   }
 
-  // If role is required but user doesn't have it, don't render children
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+  if (user && allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+    // Also as a fallback, don't render children if role not allowed.
+    // The redirect in useEffect should handle navigation.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <div className="text-center">
-          <p className="text-gray-400">Redirecting...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen text-white">
+        <p className="text-xl mb-4">Access Denied</p>
+        <p className="text-gray-400 mb-4">You do not have permission to view this page.</p>
+        <Button onClick={() => router.push("/dashboard")}>Go to Dashboard</Button>
       </div>
     )
   }

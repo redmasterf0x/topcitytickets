@@ -37,7 +37,7 @@ export default function SignInPage() {
     setLoading(true)
     setError("")
 
-    const { error } = await signIn(email, password)
+    const { error } = await signIn({ email, password })
 
     if (error) {
       // Check if the error is related to email confirmation
