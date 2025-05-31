@@ -52,7 +52,7 @@ export function AdminApprovalList() {
   const [sellerApplications, setSellerApplications] = useState<SellerApplication[]>([])
   const [eventRequests, setEventRequests] = useState<EventRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const { user, updateUser } = useAuth()
+  const { user, profile, fetchProfile } = useAuth()
 
   const [processedApplications, setProcessedApplications] = useState<SellerApplication[]>([])
   const [processedEvents, setProcessedEvents] = useState<EventRequest[]>([])
@@ -74,9 +74,9 @@ export function AdminApprovalList() {
       const { data: applicationsData, error: applicationsError } = await supabase
         .from("seller_applications")
         .select(`
-          *,
-          user:users(email, full_name)
-        `)
+        *,
+        user:users(email, full_name)
+      `)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
 
@@ -91,9 +91,9 @@ export function AdminApprovalList() {
       const { data: processedAppsData, error: processedAppsError } = await supabase
         .from("seller_applications")
         .select(`
-          *,
-          user:users(email, full_name)
-        `)
+        *,
+        user:users(email, full_name)
+      `)
         .in("status", ["approved", "rejected"])
         .order("updated_at", { ascending: false })
         .limit(20) // Limit to recent 20
@@ -108,9 +108,9 @@ export function AdminApprovalList() {
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
         .select(`
-          *,
-          organizer:users!organizer_id(email, full_name)
-        `)
+        *,
+        organizer:users!organizer_id(email, full_name)
+      `)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
 
@@ -125,9 +125,9 @@ export function AdminApprovalList() {
       const { data: processedEventsData, error: processedEventsError } = await supabase
         .from("events")
         .select(`
-          *,
-          organizer:users!organizer_id(email, full_name)
-        `)
+        *,
+        organizer:users!organizer_id(email, full_name)
+      `)
         .in("status", ["approved", "rejected"])
         .order("updated_at", { ascending: false })
         .limit(20) // Limit to recent 20
@@ -169,9 +169,10 @@ export function AdminApprovalList() {
         return
       }
 
-      // Refresh auth context if the updated user is the current user
-      if (user?.id === userId) {
-        await updateUser()
+      // If the admin happens to be approving/rejecting their own application (edge case),
+      // refresh their profile in the context.
+      if (profile?.id === userId) {
+        await fetchProfile()
       }
 
       // Refresh data
@@ -201,9 +202,10 @@ export function AdminApprovalList() {
         return
       }
 
-      // Refresh auth context if the updated user is the current user
-      if (user?.id === userId) {
-        await updateUser()
+      // If the admin happens to be approving/rejecting their own application (edge case),
+      // refresh their profile in the context.
+      if (profile?.id === userId) {
+        await fetchProfile()
       }
 
       // Refresh data
